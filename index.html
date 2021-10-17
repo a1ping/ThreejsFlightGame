@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Aviator</title>
+    <script type="text/javascript" src="./plugins/three.min.js"></script>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+	<link rel="stylesheet" href="./assets/css/styles.css">
+    <link rel="stylesheet" href="./assets/css/buttons.css">
+</head>
+<style>
+
+    body {
+        font-family: 'Avenir Next', Avenir, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        margin: 0;
+        color: #444;
+        /* background: #3243db; */
+    }
+
+    #world {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        /* background: -webkit-linear-gradient(#314ab8, #f7d9aa); */
+        /* background: linear-gradient(#e4e0ba, #f7d9aa); */
+    }
+
+</style>
+<body>
+<div class="overlay" id="gameover" style="display:none">
+	<div id="gtxt" class="unselectable">
+		Game over
+		<br>
+		<button class="pushy__btn pushy__btn--df pushy__btn--red" id="gameoverb" >Restart</button>
+	</div>
+</div>
+<div id="world">
+
+</div>
+<script type="module">
+	import * as THREE from './build/three.module.js';
+	import {BufferGeometry} from './src/core/BufferGeometry.js';
+	import { Sky } from './examples/jsm/objects/Sky.js';
+	import { Water } from './examples/jsm/objects/Water.js';
+	import { ColladaLoader } from './examples/jsm/loaders/ColladaLoader.js';
+
+
+const Flight = (function () {
+
+const colors = {
+    red: 0xf25346,
+    white: 0xd8d0d1,
+    brown: 0x59332e,
+    pink: 0xF5986E,
+    brownDark: 0x23190f,
+    blue: 0x68c3c0
+};
+
+let height;
+let width;
+
+let scene;
+let camera;
+let fieldOfView;
+let aspectRatio;
+let nearPlane;
+let farPlane;
+
+let renderer;
+let container;
+
+let hemisphereLight;
+let shadowLight;
+
+let sea;
+let sky;
+let airplane, airplane2;
+let rect;
+let rectgroup;
+let rotate=0;
+let mousePosition = {x: 0, y: 0};
+let vertex_z;
+let let3;
+let dae;
+
+THREE.Cache.enabled = true;
+
+let hex;
+
+let group, textMesh1, textMesh2, textGeo, materials;
+
+let firstLetter = true;
+
+let text = "GREAT!",text2 = "OH NO!!!", hsl,
+bevelEnabled = true,
+font = undefined,
+fontName = "helvetiker", // helvetiker, optimer, gentilis, droid sans, droid serif
+fontWeight = "regular"; // normal bold
+let t_color;
+const height2 = 20,
+size = 44,
+hover = 30,
+curveSegments = 4,
+bevelThickness = 2,
+bevelSize = 1.5;
+
+const fontMap = {
+	"helvetiker": 0,
+	"optimer": 1,
+	"gentilis": 2,
+	"droid/droid_sans": 3,
+	"droid/droid_serif": 4
+};
+
+const weightMap = {
+	"regular": 0,
+	"bold": 0
+};
+
+const reverseFontMap = [];
+const reverseWeightMap = [];
+
+for ( const i in fontMap ) reverseFontMap[ fontMap[ i ] ] = i;
+for ( const i in weightMap ) reverseWeightMap[ weightMap[ i ] ] = i;
+
+let water;
+let r_color = 'red';
+let group2, group3;
+let lp = true;
+let g_p = 0;
+
+//sky
+let sun;
+
+function setup(gameElementId) {
+    createScene(gameElementId);
+    // createLights();
+	createWater();
+	createSky();
+    createPlane();
+    createRect();
+
+    document.addEventListener('mousemove', handleMouseMove, false);
+    draw();
+
+}
+
+function draw() {
+	water.material.uniforms[ 'time' ].value += 1.0 / 60.0;
+	
+    renderer.render(scene, camera);
+    updateScene();
+    
+	if(lp){
+		requestAnimationFrame(draw);
+	}
+	
+   
+}
+
+function createScene(gameElementId) {
+
+    height = window.innerHeight;
+    width = window.innerWidth;
+
+    scene = new THREE.Scene();
+    // scene.fog = new THREE.Fog(0xf7d9aa, 100, 950);
+
+    aspectRatio = width / height;
+    fieldOfView = 60;
+    nearPlane = 1;
+    farPlane = 10000;
+    camera = new THREE.PerspectiveCamera(fieldOfView, aspectRatio, nearPlane, farPlane);
+    camera.position.x = 0;
+    camera.position.z = 200;
+    camera.position.y = 100;
+
+    renderer = new THREE.WebGLRenderer({
+        alpha: true,
+        antialias: true
+    });
+    renderer.setSize(width, height);
+    // renderer.shadowMap.enabled = false;
+
+    container = document.getElementById(gameElementId);
+    container.appendChild(renderer.domElement);
+
+    window.addEventListener('resize', handleWindowResize, false);
+}
+
+
+function updateScene() {
+	if ( dae !== undefined ) {	
+		updatePlane();
+    	updateRect();
+		group2.position.z += 10;	//you can set this value with 2, 5, 10
+		if(group2.position.z > 3000){
+			toggleGameOver();
+		}
+	}
+	
+}
+
+function handleWindowResize() {
+    height = window.innerHeight;
+    width = window.innerWidth;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+}
+
+function handleMouseMove(event) {
+    const tx = -1 + (event.clientX / width) * 2;
+    const ty = 1 - (event.clientY / height) * 2;
+    mousePosition = {x: tx, y: ty};
+    
+}
+
+function updatePlane(){
+    const targetY = normalize(mousePosition.y, -.75, .75, 25, 175);
+    const targetX = normalize(mousePosition.x, -.75, .75, -100, 100);
+	dae.position.y += (targetY - dae.position.y) * 0.1;
+	dae.position.x += (targetX - dae.position.x) * 0.1;	
+	
+	// airplane.mesh.position.y += (targetY - airplane.mesh.position.y) * 0.1;
+	// airplane.mesh.position.x += (targetX - airplane.mesh.position.x) * 0.1;
+	// dae.rotation.z = (targetY -dae.position.y) * 0.0128;
+	// dae.rotation.x = (dae.position.y - targetY) * 0.0064;
+    // airplane.propeller.rotation.x += 0.3;
+    // airplane.pilot.updateHairs();
+}
+
+function normalize(v, vmin, vmax, tmin, tmax) {
+    const nv = Math.max(Math.min(v, vmax), vmin);
+    const dv = vmax - vmin;
+    const pc = (nv - vmin) / dv;
+    const dt = tmax - tmin;
+    const tv = tmin + (pc * dt);
+    return tv;
+}
+
+function createLights() {
+
+    hemisphereLight = new THREE.HemisphereLight(0xaaaaaa, 0x000000, .9);
+
+    shadowLight = new THREE.DirectionalLight(0xffffff, .9);
+    shadowLight.position.set(150, 350, 350);
+    shadowLight.castShadow = true;
+    shadowLight.shadow.camera.left = -400;
+    shadowLight.shadow.camera.right = 400;
+    shadowLight.shadow.camera.top = 400;
+    shadowLight.shadow.camera.bottom = -400;
+    shadowLight.shadow.camera.near = 1;
+    shadowLight.shadow.camera.far = 1000;
+    shadowLight.shadow.mapSize.width = 2048;
+    shadowLight.shadow.mapSize.height = 2048;
+    const ambientLight = new THREE.AmbientLight(0xd88a82, 0.25);
+
+    scene.add(ambientLight);
+    scene.add(hemisphereLight);
+    scene.add(shadowLight);
+}
+
+function Airplane2(){
+	
+	// this.mesh = new THREE.Object3D();
+    const matCockpit = new THREE.MeshPhongMaterial({color: colors.white});
+    	
+	const loadingManager = new THREE.LoadingManager( function () {
+		scene.add( dae );	
+        
+	} );
+	// collada
+	const loader2 = new ColladaLoader( loadingManager );
+	// loader2.load( './examples/models/collada/elf/elf.dae', function ( collada ) {
+	loader2.load( './dae/model.dae', function ( collada ) {
+		dae = collada.scene;
+		dae.scale.set(.05, .05, .03);
+		dae.rotation.y = Math.PI;
+		dae.position.y = 0;
+		dae.position.x = 0;
+		dae.position.z = 100;
+
+	} );
+}
+
+function createPlane() {
+	Airplane2();
+	// airplane = new Airplane();
+    //airplane.mesh.scale.set(.5, .5, .5);
+    // airplane.mesh.position.z = 100;
+    //airplane.mesh.rotation.y = Math.PI / 2;
+
+    // scene.add(airplane.mesh);
+}
+
+function Rectangle() {
+    this.mesh = new THREE.Object3D();
+	let material = new THREE.LineBasicMaterial( {
+		color: r_color,
+		linewidth: 0,
+		linecap: 'round', //ignored by WebGLRenderer
+		linejoin:  'round' //ignored by WebGLRenderer
+	} );
+
+	var ve1 = [-1.0, -1.0,  1.0];
+	var ve2 = [1.0, -1.0,  1.0];
+	var ve3 = [1.0,  1.0,  1.0];
+	var ve4 = [1.0,  1.0,  1.0];
+	var ve5 = [-1.0,  1.0,  1.0];
+	var ve6 = [-1.0, -1.0,  1.0];
+	drawLine(this.mesh, material, ve1, ve2, ve3, ve4, ve5, ve6, 0.1);
+  
+}
+
+function drawLine(mesh, lineMaterial, ve1, ve2 , ve3, ve4, ve5, ve6, thickness){
+
+    // for (var i = thickness; i > 0  ; i--) {  
+    for (var i = thickness; i >= 0  ; i-=0.001) {  
+        const points = [];
+		points.push( new THREE.Vector3(ve1[0] - i, ve1[1] - i, ve1[2] ) );
+		points.push( new THREE.Vector3(ve2[0] - i, ve2[1] - i, ve2[2] ) );
+		points.push( new THREE.Vector3(ve3[0] - i, ve3[1] - i, ve3[2] ) );
+		points.push( new THREE.Vector3(ve4[0] - i, ve4[1] - i, ve4[2] ) );
+		points.push( new THREE.Vector3(ve5[0] - i, ve5[1] - i, ve5[2] ) );
+		points.push( new THREE.Vector3(ve6[0] - i, ve6[1] - i, ve6[2] ) );
+		const geometry = new THREE.BufferGeometry().setFromPoints( points );
+		let plane = new THREE.Line( geometry, lineMaterial );
+
+		mesh.add( plane );
+    }
+    
+}
+
+function RectangleGroup() {
+    this.mesh = new THREE.Object3D();
+    this.rect_count = 30;
+    const stepDis = Math.PI * 2/ this.rect_count;          
+	var x_pos = [-20, 20];
+	var y_pos = [730, 700];
+
+    for (let i = 0; i < this.rect_count; i++) {
+
+        let rect = new Rectangle();
+		var z_pos = i * stepDis;
+        rect.mesh.position.x = x_pos[i%2];
+        rect.mesh.position.y =  y_pos[i%2];
+        rect.mesh.position.z =  100 * - i;
+        const size = 22;
+        rect.mesh.scale.set(size, size, size);
+        rect.castShadow = true;
+        rect.receiveShadow = true;
+        this.mesh.add(rect.mesh);
+	}
+
+}
+
+function createRect() {
+    rectgroup = new RectangleGroup();
+    rectgroup.mesh.position.y = -600;
+	group2 = new THREE.Group();
+	group2.add(rectgroup.mesh);
+    scene.add(group2);
+
+}
+
+function updateRect(){
+    const material = new THREE.LineBasicMaterial( {
+                color: 'yellow',
+                linewidth: 0,
+                linecap: 'round', //ignored by WebGLRenderer
+                linejoin:  'round' //ignored by WebGLRenderer
+            } );
+    for (let i = 0; i < rectgroup.mesh.children.length; i++) {
+        let p = rectgroup.mesh.children[i];
+		let plane_pos = new THREE.Vector3();
+        dae.getWorldPosition(plane_pos);
+        const p_pos = new THREE.Vector3();
+        p.getWorldPosition(p_pos);
+        var dist = (p_pos).distanceTo(plane_pos);
+		var z_p = plane_pos['z'] - p_pos['z'];
+
+		if(dist < 20 && z_p == 0){                
+
+            p.children.forEach((mesh) => {
+                mesh.material = material;
+            });       
+			successMessage();
+			break;
+		}
+		var z_dist = plane_pos['z'] - p_pos['z'];
+		if(z_dist == 0){
+			failedMessage();
+			break;
+		}			
+	}	
+	
+	if(g_p){
+		var minu = group2.position.z - g_p;
+		if(minu > 10){
+			group.remove( textMesh1 );
+			scene.remove( group );
+			g_p = 0;
+		}
+	}
+		
+}
+
+function successMessage(){
+	
+	text = "GREAT!";
+	t_color = 'white';
+	hsl = 255;
+	textDisplay();
+	g_p = group2.position.z;		
+
+}
+
+function failedMessage(){
+	
+	text = "OH NO!!!";
+	hsl = 0;
+	t_color = 'black';
+	textDisplay();
+	g_p = group2.position.z;		
+
+}
+
+function decimalToHex( d ) {
+
+	let hex = Number( d ).toString( 16 );
+	hex = "000000".substr( 0, 6 - hex.length ) + hex;
+	return hex.toUpperCase();
+
+}
+
+function light(){
+	// LIGHTS
+	const dirLight = new THREE.DirectionalLight( 0xffffff, 0.125 );
+	dirLight.position.set( 0, 0, 1 ).normalize();
+	scene.add( dirLight );
+
+	const pointLight = new THREE.PointLight( 0xffffff, 1.5 );
+	pointLight.position.set( 0, 100, 90 );
+	scene.add( pointLight );
+	// Get text from hash
+	// const hash = document.location.hash.substr( 1 );
+	// if ( hash.length !== 0 ) {
+	// 	const colorhash = hash.substring( 0, 6 );
+	// 	const fonthash = hash.substring( 6, 7 );
+	// 	const weighthash = hash.substring( 1,2 );
+	// 	const bevelhash = hash.substring( 8, 9 );
+	// 	const texthash = hash.substring( 10 );
+	// 	hex = colorhash;
+	// 	pointLight.color.setHex( parseInt( colorhash, 16 ) );
+	// 	fontName = reverseFontMap[ parseInt( fonthash ) ];
+	// 	fontWeight = reverseWeightMap[ parseInt( weighthash ) ];
+	// 	bevelEnabled = parseInt( bevelhash );
+	// 	text = decodeURI( texthash );
+	// } else {
+	// 	pointLight.color.setHSL( hsl, 1, 0.5 );
+	// 	hex = decimalToHex( pointLight.color.getHex() );
+	// }
+}
+
+function textDisplay() {							
+	light();
+	materials = [
+		new THREE.MeshPhongMaterial( { color: t_color , flatShading: false } ), // front
+		// new THREE.MeshPhongMaterial( { color: 'red' } ) // side
+	];
+
+	group = new THREE.Group();
+	group.position.x = 420;
+	group.position.y = 220;
+	group.position.z = -1000;
+	scene.add( group );
+	loadFont();	
+	
+}
+
+function loadFont() {
+
+	const loader = new THREE.FontLoader();
+	loader.load( './examples/fonts/' + fontName + '_' + fontWeight + '.typeface.json', function ( response ) {
+
+		font = response;
+		refreshText();
+
+	} );
+
+}
+
+function createText() {
+
+	textGeo = new THREE.TextGeometry( text, {
+
+		font: font,
+		size: 250,
+		height: 0,
+		curveSegments: curveSegments,
+		bevelThickness: bevelThickness,
+		bevelSize: bevelSize,
+		bevelEnabled: bevelEnabled
+
+	} );
+
+	textGeo.computeBoundingBox();
+
+	const centerOffset = - 0.5 * ( textGeo.boundingBox.max.x - textGeo.boundingBox.min.x );
+	textMesh1 = new THREE.Mesh( textGeo , materials);
+	textMesh1.position.x = centerOffset;
+	textMesh1.position.y = hover;
+	textMesh1.position.z = 0;
+	
+	group.add( textMesh1 );
+
+}
+
+function refreshText() {
+
+	group.remove( textMesh1 );
+	createText();
+
+}
+
+
+function createSky(){
+	const sky = new Sky();
+	sky.scale.setScalar( 10000 );
+	scene.add( sky );
+	const skyUniforms = sky.material.uniforms;
+	skyUniforms[ 'turbidity' ].value = 10;
+	skyUniforms[ 'rayleigh' ].value = 2;
+	skyUniforms[ 'mieCoefficient' ].value = 0.005;
+	skyUniforms[ 'mieDirectionalG' ].value = 0.8;
+
+	const parameters = {
+		elevation: 11,
+		azimuth: 83
+	};
+
+	sun = new THREE.Vector3();
+
+	const pmremGenerator = new THREE.PMREMGenerator( renderer );
+
+	function updateSun() {
+
+		const phi = THREE.MathUtils.degToRad( 90 - parameters.elevation );
+		const theta = THREE.MathUtils.degToRad( parameters.azimuth );
+
+		sun.setFromSphericalCoords( 1, phi, theta );
+
+		sky.material.uniforms[ 'sunPosition' ].value.copy( sun );
+		water.material.uniforms[ 'sunDirection' ].value.copy( sun ).normalize();
+
+		scene.environment = pmremGenerator.fromScene( sky ).texture;
+
+	}
+
+	updateSun();
+
+
+}
+
+function createWater(){
+
+const waterGeometry = new THREE.PlaneGeometry( 10000, 10000 );
+water = new Water(
+	waterGeometry,
+	{
+		textureWidth: 512,
+		textureHeight: 512,
+		waterNormals: new THREE.TextureLoader().load( './examples/textures/waternormals.jpg', function ( texture ) {
+
+			texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+
+		} ),
+		sunDirection: new THREE.Vector3(),
+		sunColor: 0xffffff,
+		waterColor: 0x001e0f,
+		distortionScale: 3.7,
+		fog: scene.fog !== undefined
+	}
+);
+
+water.rotation.x = - Math.PI / 2;
+
+scene.add( water );
+
+}
+
+
+const toggleGameOver = () => {
+    lp = false;
+	if(scene) { 
+        while(scene.children.length > 0){ 
+            scene.remove(scene.children[0]);
+        }
+    }
+    document.getElementById('gameover').style.display = 'block';
+
+}
+
+	const button = document.getElementById('gameoverb');
+	button.addEventListener( 'click', function () {
+		location.reload();
+	}, false );
+
+
+return {
+    setup: setup
+};
+
+})();
+
+    window.onload = function () {
+
+        Flight.setup("world");
+    }
+
+
+</script>
+
+</body>
+</html>

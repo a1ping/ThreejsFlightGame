@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Test</title>
+        <meta http-equiv="content-type" content="text/html;charset=utf-8" />
+        <link rel="icon" type="image/png" href="images/icon.png" />
+        <style type="text/css">
+            body{
+            color: grey;
+            margin: 0px 0px;
+            padding: 0px 0px;
+            }
+
+            #header {
+            width: 800px;
+            margin: 5px auto;
+            }
+
+            .button {
+            border: 2px solid lightgrey;
+            border-radius: 5px;
+            background-color: grey;
+            color: white;
+            padding: 5px;
+            cursor: pointer;
+            -webkit-transition: all 1s ease-in-out;
+            -moz-transition: all 1s ease-in-out;
+            }
+            .button:hover {
+            color: black;
+            background-color: darkorange;
+            border-color: grey;
+            }
+
+            #viewport {
+            border: 2px solid grey;
+            border-radius: 2px;
+            background-color: cornflowerblue;
+            width: 800px;
+            height: 600px;
+            margin: 0 auto;
+            padding: 0;
+            }
+        </style>
+
+        <script src="./build/three.js">
+        </script>
+
+        <script type="module">
+			import { FlyControls } from './examples/jsm/controls/FlyControls.js';
+
+
+        //----Variables----//
+            //DOM element to attach the renderer to
+            var viewport = document.getElementById('viewport');
+            //viewport size
+            var viewportWidth = 800;
+            var viewportHeight = 600;
+
+            //camera attributes
+            var view_angle = 45,
+                aspect = viewportWidth / viewportHeight,
+                near = 0.1,//near clip-plane
+                far = 10000;//far clip-plane
+
+            //sphere specifications
+            var radius = 50, segments = 32, rings = 32;
+
+            //sphere material
+            var sphereMaterial = new THREE.MeshLambertMaterial(
+            {
+                color: 0xCC0000
+            });
+
+        //----Constructors----//
+            var renderer = new THREE.WebGLRenderer({antialias: true});
+            var scene = new THREE.Scene();
+
+            var camera = new THREE.PerspectiveCamera(
+            view_angle,
+            aspect,
+            near,
+            far
+            );
+
+            //constructs and empty object and attach controls to it
+            var dummy = new THREE.Object3D();
+            var controls = new THREE.FlyControls( dummy );
+
+            //constructs an instance of a white light
+            var pointLight = new THREE.PointLight( 0xFFFFFF );
+
+            //constructs an instance of a sphere
+            var sphere = new THREE.Mesh(
+                new THREE.SphereGeometry(radius, segments, rings),
+                sphereMaterial);
+
+        //----Initialization----//
+            function initialize()
+            {
+                //Sets up the renderer to the same size as a DOM element
+                //then attaches it to that element
+                renderer.setSize(viewportWidth, viewportHeight);
+                document.getElementById('viewport').appendChild(renderer.domElement);
+
+                //set position of camera
+                camera.position.set(0,0,200);
+
+                //camera control properties
+                controls.movementSpeed = 100;
+                controls.domElement = viewport;
+                controls.rollSpeed = 0.5;
+                controls.autoForward = false;
+                controls.dragToLook = true;
+
+                //set position of sphere
+                sphere.position.set(0,0,0);
+
+                //set position of light
+                pointLight.position.set(10,50,150);
+
+                //add the objects to the scene
+                //scene.add(camera);
+                scene.add(dummy);
+                dummy.add(camera);
+
+                scene.add(sphere);
+                scene.add(pointLight);
+
+                // call update
+                update();
+            }
+
+
+
+        //----Update----//
+            function update() {
+
+                //dummy.position.z += 1;
+
+                window.webkitRequestAnimationFrame( update );
+                draw();
+            }
+
+
+
+        //----Draw----//
+            function draw() {
+                renderer.render(scene, camera);
+            }
+            </script>
+    </head>
+    <body>
+        <div id="header">
+            <input class="button" type="button" value="Launch" onclick="initialize();" />
+        </div>
+
+        <div id="viewport"></div>
+
+    </body>
+</html>
